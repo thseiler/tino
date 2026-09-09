@@ -193,8 +193,10 @@ class TinoApp {
 
   async _restoreBucketTabs() {
     this.editor.restoreTabs()
-    if (this.openTabs.length > 0)
+    if (this.openTabs.length > 0) {
       await this.editor.openFile(this.openTabs[0])
+      this.fileTree.reveal(this.openTabs[0])
+    }
   }
 
   /** Resolve a bucket slug to its display name (the name if set, else slug). */

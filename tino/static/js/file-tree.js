@@ -270,4 +270,24 @@ export class FileTree {
       this.app.editor.openFile(filePath)
   }
 
+  /** Force parent folders of a specific path to expand and re-render. */
+  
+  reveal(filePath) {
+    if (!filePath) 
+      return
+    let currentPath = ''
+    let changed = false
+    const parts = filePath.split('/')
+    parts.pop()
+    parts.forEach(part => {
+      currentPath += (currentPath ? '/' : '') + part
+      if (this.collapsedPaths.delete(currentPath)) 
+        changed = true
+    })
+    if (changed) {
+      localStorage.setItem('tino_collapsed_folders', JSON.stringify([...this.collapsedPaths]))
+      this._renderTree()
+    }
+  }
+
 }
