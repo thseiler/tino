@@ -12,6 +12,7 @@ import { TreeActions } from './tree-actions.js'
 import { TreeBuilder } from './tree-builder.js'
 import { TreeDrag } from './tree-drag.js'
 import { TreeNewMenu } from './tree-new-menu.js'
+import { filterNodes } from './tree-filter.js'
 
 /**
  * Manages the file explorer tree and bucket loading.
@@ -84,39 +85,11 @@ export class FileTree {
     const query = this.app.els.fileSearch.value
       .trim().toLowerCase()
     const collapsed = query ? new Set() : this.collapsedPaths
-    const nodes = FileTree._filterNodes(this._nodes, query)
+    const nodes = filterNodes(this._nodes, query)
     const tree = this.app.els.fileTree
     this._canEditCached = this._canEdit()
     tree.innerHTML = ''
     this._renderNodes(tree, nodes, collapsed)
-  }
-
-  /** Recursively keep only nodes whose path matches the query. */
-
-  static _filterNodes(nodes, query) {
-    if (!query)
-      return nodes
-    const result = []
-    nodes.forEach(node => {
-      if (node.type === 'directory')
-        FileTree._filterDir(result, node, query)
-      else if (node.path.toLowerCase().includes(query))
-        result.push(node)
-    })
-    return result
-  }
-
-  static _filterDir(result, node, query) {
-    const children = FileTree._filterNodes(node.children, query)
-    if (children.length) {
-      result.push({
-        children,
-        name: node.name,
-        path: node.path,
-        status: node.status,
-        type: node.type,
-      })
-    }
   }
 
   _renderNodes(parent, nodes, collapsed) {
