@@ -115,7 +115,7 @@ class BucketService:
 
         repo = git.Repo.init(path)
         try:
-            repo.index.add([META_FILE])
+            repo.index.add([Path(META_FILE).as_posix()])
             actor = self._actor(user) if user else None
             repo.index.commit('Initialize bucket\n\nTino-Meta: true',
                               author=actor, committer=actor)
@@ -162,7 +162,7 @@ class BucketService:
 
             repo = git.Repo(path)
             try:
-                repo.index.add([META_FILE])
+                repo.index.add([Path(META_FILE).as_posix()])
                 actor = self._actor(user) if user else None
                 repo.index.commit(
                     'Update bucket metadata\n\nTino-Meta: true',
