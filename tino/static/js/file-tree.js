@@ -29,6 +29,9 @@ export class FileTree {
     this.newMenu = new TreeNewMenu(app)
     this.filePaths = new Set()
     this._nodes = []
+
+    const saved = localStorage.getItem('tino_collapsed_folders')
+    this.collapsedPaths = new Set(saved ? JSON.parse(saved) : [])
   }
 
   /** Fetch all buckets and auto-select if only one. */
@@ -80,7 +83,7 @@ export class FileTree {
   _renderTree() {
     const query = this.app.els.fileSearch.value
       .trim().toLowerCase()
-    const collapsed = query ? new Set() : this._getCollapsedPaths()
+    const collapsed = query ? new Set() : this.collapsedPaths
     const nodes = FileTree._filterNodes(this._nodes, query)
     const tree = this.app.els.fileTree
     this._canEditCached = this._canEdit()
@@ -114,14 +117,6 @@ export class FileTree {
         type: node.type,
       })
     }
-  }
-
-  _getCollapsedPaths() {
-    const paths = new Set()
-    this.app.els.fileTree
-      .querySelectorAll('.folder-item.collapsed')
-      .forEach(el => paths.add(el.dataset.folder))
-    return paths
   }
 
   _renderNodes(parent, nodes, collapsed) {
@@ -266,8 +261,13 @@ export class FileTree {
       this.actions.deleteFolder(folderPath)
     else if (evt.target.closest('.folder-rename'))
       this.actions.renameFolder(folderPath)
-    else
-      folderItem.classList.toggle('collapsed')
+    else {
+      if (folderItem.classList.toggle('collapsed'))
+        this.collapsedPaths.add(folderPath)
+      else
+        this.collapsedPaths.delete(folderPath)
+      localStorage.setItem('tino_collapsed_folders', JSON.stringify([...this.collapsedPaths]))
+    }
   }
 
   /** Bind drag-and-drop upload on the file explorer panel. */
