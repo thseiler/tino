@@ -1,7 +1,44 @@
+# ── Stage 1: Bundle frontend JS & WASM ──
+FROM node:26-slim AS js-builder
+
+WORKDIR /src
+
+COPY package.json package-lock.json* ./
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
+
+COPY tino/static/js tino/static/js
+RUN npm run build
+
+
+# ── Stage 2: Fetch vendor CSS & build Python wheel ──
+FROM python:3.15-slim AS py-builder
+
+ARG SETUPTOOLS_SCM_PRETEND_VERSION_FOR_TINO
+
+WORKDIR /src
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates git \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir build
+
+COPY pyproject.toml README* LICENSE* ./
+COPY .git .git
+COPY tino tino
+COPY --from=js-builder /src/tino/static/js/vendor tino/static/js/vendor
+
+RUN mkdir -p tino/static/css/vendor \
+    && curl -sSfLo tino/static/css/vendor/colours.css https://assets.confirm.ch/colours.css \
+    && python3 -m build --wheel -o /dist
+
+    
+# ── Stage 3: Slim runtime image ──
 FROM python:3.15-slim
 
 # renovate: github-releases depName=typst/typst
 ARG TYPST_VERSION=0.15.1
+
+# renovate: github-releases depName=Myriad-Dreamin/tinymist
+ARG TINYMIST_VERSION=0.15.12
 
 # Used for the DOCX export; only published for amd64 & arm64, so other
 # platforms ship without it and the export is hidden in the UI.
@@ -14,8 +51,9 @@ ARG TARGETVARIANT
 
 WORKDIR /usr/src
 
-COPY build/*.whl .
+COPY --from=py-builder /dist/*.whl .
 COPY tino/gitattributes /etc/gitattributes
+
 RUN apt-get update && apt-get install -y --no-install-recommends curl git git-lfs xz-utils \
     && pip install --no-cache-dir *.whl \
     && rm -f *.whl \
@@ -28,6 +66,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl git git-lf
        esac \
     && curl -sSfL https://github.com/typst/typst/releases/download/v${TYPST_VERSION}/typst-${TYPST_TARGET}.tar.xz \
        | tar -xJ --strip-components=1 -C /usr/local/bin typst-${TYPST_TARGET}/typst \
+    && case "$TARGETARCH/$TARGETVARIANT" in \
+         amd64/*) TINYMIST_TARGET=x86_64-unknown-linux-gnu ;; \
+         arm64/*) TINYMIST_TARGET=aarch64-unknown-linux-gnu ;; \
+         arm/v7)  TINYMIST_TARGET=armv7-unknown-linux-gnueabihf ;; \
+         *)       TINYMIST_TARGET="" ;; \
+       esac \
+    && if [ -n "$TINYMIST_TARGET" ]; then \
+         curl -sSfL https://github.com/Myriad-Dreamin/tinymist/releases/download/v${TINYMIST_VERSION}/tinymist-${TINYMIST_TARGET}.tar.gz \
+           | tar -xz --strip-components=1 -C /usr/local/bin tinymist-${TINYMIST_TARGET}/tinymist; \
+       else \
+         echo "No Tinymist binary for target platform '${TARGETARCH}/${TARGETVARIANT}', falling back to Typst CLI" >&2; \
+       fi \
     && case "$TARGETARCH" in \
          amd64|arm64) curl -sSfL https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-linux-${TARGETARCH}.tar.gz \
                         | tar -xz --strip-components=2 -C /usr/local/bin pandoc-${PANDOC_VERSION}/bin/pandoc ;; \

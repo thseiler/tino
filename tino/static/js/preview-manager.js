@@ -1,43 +1,56 @@
+import { PreviewDiagnostics } from './preview-diagnostics.js'
+import { PreviewRenderer } from './preview-renderer.js'
 import { PreviewZoom } from './preview-zoom.js'
 import { SINGLE_ITEM } from './constants.js'
+import { TinymistPreview } from './tinymist-preview.js'
+import { setupPreviewLinks } from './preview-links.js'
 
 /**
- * Manages preview rendering and zoom controls.
+ * Coordinates preview rendering, pinning, zoom, and format exports.
  */
 
 export class PreviewManager {
 
-  /** @param {TinoApp} app - Main application instance. */
-
   constructor(app) {
     this.app = app
+    setupPreviewLinks(this.app)
+    this.renderer = new PreviewRenderer(this.app.els.previewPage)
+    this.diagnostics = new PreviewDiagnostics(this.app)
+    this.engine = new TinymistPreview(this.app, this.renderer, this.diagnostics)
   }
 
-  /** The file the preview renders: the pinned file, else the active file. */
+  get connection() {
+    return this.engine.connection
+  }
 
   get target() {
     return this.app.pinnedPreview || this.app.currentFile
   }
 
-  /**
-   * Compile the preview target (the pinned file when one is pinned, otherwise
-   * the current file) and render its SVG pages in the preview pane.
-   */
-
-  async update() {
-    const isTyp = this.target && this.target.endsWith('.typ')
+  update() {
+    const isTyp = Boolean(this.target && this.target.endsWith('.typ'))
     this._renderPinControls()
-    document.getElementById('btn-pdf')
-      .classList.toggle('hidden', !isTyp)
-    document.getElementById('btn-docx')
-      .classList.toggle('hidden', !isTyp || !this.app.config.docxExport)
+    this._toggleExportButtons(isTyp)
     if (isTyp)
-      await this.compile()
-    else
-      this.clear()
+      this._startPreview()
+    else {
+      this.engine.disconnect()
+      this.renderer.clear()
+    }
   }
 
-  /** Pin the preview to the current .typ file, or unpin if already pinned. */
+  _toggleExportButtons(isTyp) {
+    document.getElementById('btn-pdf').classList.toggle('hidden', !isTyp)
+    document.getElementById('btn-docx')
+      .classList.toggle('hidden', !isTyp || !this.app.config.docxExport)
+  }
+
+  _startPreview() {
+    if (this.app.config.tinymist === false)
+      this.compile()
+    else
+      this.engine.connect(this.target)
+  }
 
   togglePin() {
     if (this.app.pinnedPreview)
@@ -47,13 +60,21 @@ export class PreviewManager {
     this.update()
   }
 
-  /** Sync the pin button and pinned-file label with the current pin state. */
+  _autoPinCurrent() {
+    if (!this.app.pinnedPreview && this.app.currentFile && this.app.currentFile.endsWith('.typ')) {
+      this.app.pinnedPreview = this.app.currentFile
+      this.update()
+    }
+  }
 
   _renderPinControls() {
     const pinned = this.app.pinnedPreview
     const cur = this.app.currentFile
     const canPin = Boolean(pinned) || Boolean(cur && cur.endsWith('.typ'))
     const btn = document.getElementById('btn-pin-preview')
+    if (!btn)
+      return
+
     btn.classList.toggle('hidden', !canPin)
     btn.classList.toggle('active', Boolean(pinned))
     btn.title = PreviewManager._pinTitle(pinned)
@@ -61,114 +82,46 @@ export class PreviewManager {
   }
 
   static _pinTitle(pinned) {
-    if (pinned)
-      return `Preview pinned to ${pinned} — click to unpin`
-    return 'Pin preview to this file'
+    return pinned ? `Preview pinned to ${pinned} — click to unpin` : 'Pin preview to this file'
   }
 
   static _renderPinLabel(pinned) {
     const label = document.getElementById('preview-pin-label')
+    if (!label)
+      return
     label.classList.toggle('hidden', !pinned)
     if (pinned) {
-      // Show only the filename; the full path lives in the hover tooltip.
       label.textContent = pinned.split('/').pop()
       label.title = pinned
     }
   }
 
-  /** Show a placeholder when the current file has no preview. */
-
-  clear() {
-    this.app.els.previewPage.innerHTML =
-      '<p class="preview-empty">No preview available for this file.</p>'
-  }
-
-  /** Compile the current .typ file via the API and render SVG pages. */
+  /** Fallback static SVG compiler when Tinymist is unavailable. */
 
   async compile() {
     if (!this.app.bucket || !this.target)
       return
     this._renderGen = (this._renderGen || 0) + SINGLE_ITEM
     const gen = this._renderGen
-    const preview = this.app.els.previewPage
+
     try {
       const result = await this.app.api.compile(this.app.bucket, this.target)
       if (gen === this._renderGen)
-        PreviewManager._renderPages(preview, result.pages)
+        PreviewManager._renderPages(this.app.els.previewPage, result.pages)
     }
     catch (err) {
       if (gen === this._renderGen)
-        this._renderError(preview, err)
+        this._renderInlineError(err)
     }
   }
 
-  /** Render the diagnostics, or the raw error text if there are none. */
-
-  _renderError(preview, err) {
+  _renderInlineError(err) {
     const diagnostics = err.diagnostics || []
     if (diagnostics.length)
-      preview.replaceChildren(this._renderDiagnostics(diagnostics))
+      this.app.els.previewPage.replaceChildren(this.diagnostics.renderList(diagnostics))
     else
-      preview.replaceChildren(PreviewManager._renderRawError(err.message))
+      this.app.els.previewPage.replaceChildren(PreviewDiagnostics.renderRawError(err.message))
   }
-
-  /** Build the list of diagnostics. */
-
-  _renderDiagnostics(diagnostics) {
-    const list = document.createElement('div')
-    list.className = 'preview-errors'
-    diagnostics.forEach(diag => list.appendChild(this._renderDiagnostic(diag)))
-    return list
-  }
-
-  /** Build one diagnostic entry clickable only when it has a location. */
-
-  _renderDiagnostic(diag) {
-    const item = document.createElement(diag.file ? 'button' : 'div')
-    item.className = `preview-error-item preview-error-${diag.severity}`
-    item.appendChild(PreviewManager._span('preview-error-message', diag.message))
-    if (diag.file)
-      this._makeClickable(item, diag)
-    return item
-  }
-
-  /** Wire the entry to jump to its location on click. */
-
-  _makeClickable(item, diag) {
-    const loc = `${diag.file}:${diag.line}:${diag.column}`
-    item.appendChild(PreviewManager._span('preview-error-loc', loc))
-    item.type = 'button'
-    item.addEventListener('click', () => this._jumpToDiagnostic(diag))
-  }
-
-  /** Open the diagnostic's file and move the caret to its position. */
-
-  async _jumpToDiagnostic(diag) {
-    await this.app.editor.openFile(diag.file)
-
-    // Typst can report column 0; setCursor is 1-based.
-    this.app.els.editor.setCursor(diag.line, Math.max(SINGLE_ITEM, diag.column))
-  }
-
-  /** Create a span with a class and text content. */
-
-  static _span(className, text) {
-    const span = document.createElement('span')
-    span.className = className
-    span.textContent = text
-    return span
-  }
-
-  /** Fallback when there are no structured diagnostics. */
-
-  static _renderRawError(message) {
-    const pre = document.createElement('pre')
-    pre.className = 'preview-error'
-    pre.textContent = message
-    return pre
-  }
-
-  /** Build all SVG pages off-DOM and swap them in with a single reflow. */
 
   static _renderPages(preview, pages) {
     const fragment = document.createDocumentFragment()
@@ -181,36 +134,27 @@ export class PreviewManager {
     preview.replaceChildren(fragment)
   }
 
-  /**
-   * Download the current .typ file compiled to a document format.
-   * @param {string} format - `pdf` or `docx`.
-   */
-
   download(format) {
     if (!this.app.bucket || !this.target)
       return
     const slug = encodeURIComponent(this.app.bucket)
-    const path = this.target
-    const url = `api/buckets/${slug}/compile/${format}/${path}`
     const link = document.createElement('a')
-    link.href = url
+    link.href = `api/buckets/${slug}/compile/${format}/${this.target}`
     link.download = ''
     link.click()
   }
 
-  /** Bind zoom (buttons and Ctrl/⌘ + wheel), PDF/DOCX download and pin buttons. */
+  bind() {
+    this.bindZoom()
+    this.diagnostics.bind(() => this.target)
+    this.engine.bind(() => this._autoPinCurrent())
+  }
 
   bindZoom() {
     new PreviewZoom(this.app).bind()
-
-    document.getElementById('btn-pdf')
-      .addEventListener('click', () => this.download('pdf'))
-
-    document.getElementById('btn-docx')
-      .addEventListener('click', () => this.download('docx'))
-
-    document.getElementById('btn-pin-preview')
-      .addEventListener('click', () => this.togglePin())
+    document.getElementById('btn-pdf').addEventListener('click', () => this.download('pdf'))
+    document.getElementById('btn-docx').addEventListener('click', () => this.download('docx'))
+    document.getElementById('btn-pin-preview').addEventListener('click', () => this.togglePin())
   }
 
 }

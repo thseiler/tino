@@ -54,15 +54,17 @@ export class CodeMirrorEditor {
     this._onSave = opts.onSave || _noop
     this._onCursor = opts.onCursor || _noop
     this._onChange = opts.onChange || _noop
+    this._remoteSync = false
+    this._initCompartments()
+    this._view = new EditorView({ parent, state: this._buildState('') })
+  }
+
+  _initCompartments() {
     this._editable = new Compartment()
     this._placeholder = new Compartment()
     this._collab = new Compartment()
     this._vim = new Compartment()
     this._wrap = new Compartment()
-    this._view = new EditorView({
-      parent,
-      state: this._buildState(''),
-    })
   }
 
   /**
@@ -74,6 +76,15 @@ export class CodeMirrorEditor {
 
   setCollab(ext) {
     this._view.dispatch({ effects: this._collab.reconfigure(ext || []) })
+  }
+
+  /** Mark the next synchronous editor transaction as a remote Yjs sync. */
+
+  markRemoteSync() {
+    this._remoteSync = true
+    queueMicrotask(() => {
+      this._remoteSync = false
+    })
   }
 
   /**
@@ -172,17 +183,13 @@ export class CodeMirrorEditor {
   }
 
   _onUpdate(update) {
-    const programmatic =
-      update.transactions.some(tr => tr.annotation(_programmatic) === true)
+    const programmatic = update.transactions.some(tr => tr.annotation(_programmatic) === true)
+    if (programmatic || this._remoteSync)
+      return
 
-    /* Suppress the cursor callback for programmatic content swaps (loading a
-       file), otherwise the caret reset to line 1 is recorded against the
-       outgoing file's tab before the switch completes. setCursor is not
-       annotated programmatic, so genuine caret moves still report. */
-
-    if ((update.selectionSet || update.docChanged) && !programmatic)
-      this._onCursor()
-    if (update.docChanged && !programmatic)
+    if (update.selectionSet || update.docChanged)
+      this._onCursor(update.docChanged)
+    if (update.docChanged)
       this._onChange()
   }
 
@@ -230,8 +237,7 @@ export class CodeMirrorEditor {
   /** @param {boolean} editable - Whether the user can edit the document. */
 
   setEditable(editable) {
-    const editableState = EditorView.editable.of(editable)
-    this._view.dispatch({ effects: this._editable.reconfigure(editableState) })
+    this._view.dispatch({ effects: this._editable.reconfigure(EditorView.editable.of(editable)) })
   }
 
   /** @param {string} text - Placeholder shown when the document is empty. */

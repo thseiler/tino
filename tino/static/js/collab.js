@@ -102,6 +102,10 @@ export class CollabSession {
 
   _bindCollab() {
     this._bound = true
+    this._ytext.observe(evt => {
+      if (!evt.transaction.local)
+        this._editor.markRemoteSync()
+    })
     this._editor.setCollab(
       yCollab(this._ytext, this._provider.awareness, { undoManager: false }),
     )

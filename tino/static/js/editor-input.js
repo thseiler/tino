@@ -21,6 +21,8 @@ export class EditorInput {
 
   bind() {
     this.app.els.editor.onChange(() => this._handleInput())
+    if (this.app.els.editor.onCursorActivity)
+      this.app.els.editor.onCursorActivity(() => this.updateCursorPos())
   }
 
   /** Rebuild the tab bar, marking dirty files. */
@@ -59,13 +61,16 @@ export class EditorInput {
     })
   }
 
-  /** Update the cursor position display. */
+  /** Update the cursor position display and sync the preview. */
 
-  updateCursorPos() {
+  updateCursorPos(docChanged) {
     const { col, line } = this.app.els.editor.getCursorPosition()
     this.app.els.cursorPos.textContent = `Ln ${line}, Col ${col}`
-    if (this.app.currentFile)
+    if (this.app.currentFile) {
       this.app.tabPositions[this.app.currentFile] = { col, line }
+      if (this.app.sync)
+        this.app.sync.syncPreviewToCursor(this.app.currentFile, line, col, docChanged)
+    }
   }
 
   /** Show the file's last-modified timestamp in the status bar. */
@@ -85,7 +90,6 @@ export class EditorInput {
   // ── Internal ──
 
   _handleInput() {
-    this.updateCursorPos()
     const cur = this.app.currentFile
     if (!cur)
       return
