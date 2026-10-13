@@ -170,6 +170,9 @@
           </button>
           <span class="preview-pin-label hidden" id="preview-pin-label"></span>
         </div>
+        <button class="icon-btn hidden" id="btn-compile-status" title="Compile Status">
+          <span class="material-symbols-outlined" id="compile-status-icon">check_circle</span>
+        </button>
         <button class="btn-pdf hidden" id="btn-pdf" title="Download PDF">
           <span class="material-symbols-outlined">picture_as_pdf</span>
           PDF
@@ -192,6 +195,16 @@
         </div>
       </div>
       <div class="preview-viewport" id="preview-viewport">
+          <div class="preview-error-overlay hidden" id="preview-error-overlay">
+          <div class="preview-error-header">
+            <span class="error-title">Compilation Errors</span>
+            <button class="icon-btn" id="btn-close-errors" title="Close">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div id="preview-error-list"></div>
+        </div>
+
         <div class="preview-page" id="preview-page">
           <p class="preview-empty">Open a file to see the preview.</p>
         </div>

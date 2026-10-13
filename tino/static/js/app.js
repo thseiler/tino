@@ -8,6 +8,7 @@ import { FontManager } from './font-manager.js'
 import { GitManager } from './git-manager.js'
 import { PanelResize } from './panel-resize.js'
 import { PreviewManager } from './preview-manager.js'
+import { PreviewSyncMediator} from './preview-sync.js'
 import { SearchModal } from './search-modal.js'
 import { TemplatePicker } from './template-picker.js'
 import { TinoAPI } from './api.js'
@@ -78,6 +79,7 @@ class TinoApp {
     this.git = new GitManager(this)
     this.panelResize = new PanelResize()
     this.preview = new PreviewManager(this)
+    this.sync = new PreviewSyncMediator(this)
     this._initDialogs()
   }
 
@@ -99,6 +101,14 @@ class TinoApp {
     await this._loadUser()
     await this.fileTree.loadBuckets()
     await this._applyRoute(route, true)
+    this._pinInitialRoute(route)
+  }
+
+  _pinInitialRoute(route) {
+    if (!route.path || !route.path.endsWith('.typ') || this.currentFile !== route.path)
+      return
+    this.pinnedPreview = route.path
+    this.preview.update()
   }
 
   /** Show the app version on hover over the header logo. */
@@ -125,7 +135,7 @@ class TinoApp {
     this.apiKeyManager.bind()
     this.templatePicker.bind()
     this.searchModal.bind()
-    this.preview.bindZoom()
+    this.preview.bind()
   }
 
   _bindFileTree() {

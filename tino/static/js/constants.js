@@ -10,6 +10,10 @@ export const HTTP_NO_CONTENT = 204
 
 export const HTTP_UNAUTHORIZED = 401
 
+/** Websocket Normal Close code */
+
+export const WS_CLOSE_NORMAL = 1000
+
 /** Percentage increment for preview zoom in/out. */
 
 export const ZOOM_STEP = 10
@@ -111,3 +115,25 @@ export const STATUS_CLASSES = {
   modified: 'status-modified',
   untracked: 'status-untracked',
 }
+
+/** The Gap in pixels to separate pages in the preview view */
+
+export const PREVIEW_PAGE_GAP_SIZE = 20
+
+
+/** The debounce timeout after typing before rendering the preview */
+
+export const PREVIEW_DEBOUNCE_TIMEOUT = 300
+
+/** The websocket timeout for the preview websocket */
+
+export const PREVIEW_SOCKET_TIMEOUT = 1000
+
+/** The offset for things that are counted starting from one. */
+
+export const ONE_BASED_OFFSET = 1
+
+
+/** The duration to show the jump highlight */
+
+export const JUMP_HIGHLIGHT_DURATION_MS = 1500

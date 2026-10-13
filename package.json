@@ -1,7 +1,9 @@
 {
   "scripts": {
-    "build": "mkdir -p tino/static/js/vendor && npm run build:codemirror",
-    "build:codemirror": "esbuild --bundle --minify --format=esm --log-level=warning --outfile=tino/static/js/vendor/codemirror.js tino/static/js/codemirror-entry.js"
+    "build": "mkdir -p tino/static/js/vendor && npm run build:codemirror && npm run build:preview && npm run copy:wasm",
+    "build:codemirror": "esbuild --bundle --minify --format=esm --log-level=warning --outfile=tino/static/js/vendor/codemirror.js tino/static/js/codemirror-entry.js",
+    "build:preview": "esbuild --bundle --minify --format=esm --log-level=warning --outfile=tino/static/js/vendor/preview.js tino/static/js/preview-entry.js",
+    "copy:wasm": "node -e \"fs.mkdirSync('tino/static/wasm', { recursive: true }); fs.copyFileSync('node_modules/@myriaddreamin/typst-ts-renderer/pkg/typst_ts_renderer_bg.wasm', 'tino/static/wasm/typst_ts_renderer_bg.wasm')\""
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -10,7 +12,11 @@
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.0",
     "@lezer/highlight": "^1.2.3",
+    "@myriaddreamin/typst-ts-renderer": "^0.7.0",
+    "@myriaddreamin/typst-ts-web-compiler": "^0.7.0",
+    "@myriaddreamin/typst.ts": "^0.7.0",
     "@replit/codemirror-vim": "^6.3.0",
+    "codemirror-languageserver": "^1.22.1",
     "y-codemirror.next": "^0.3.5",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.30"

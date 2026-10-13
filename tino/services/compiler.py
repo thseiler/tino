@@ -97,7 +97,7 @@ class CompilerService:
         Raises FileNotFoundError if the source file doesn't exist,
         or RuntimeError if compilation fails (with the stderr message).
         '''
-        bucket_dir, source = self._resolve_source(slug, path)
+        bucket_dir, source = self.resolve_source(slug, path)
         logger.debug('Compiling SVG for %s/%s', slug, path)
 
         return self._render_svgs(source, bucket_dir)
@@ -110,7 +110,7 @@ class CompilerService:
         Raises FileNotFoundError if the source file doesn't exist,
         or RuntimeError if compilation fails (with the stderr message).
         '''
-        bucket_dir, source = self._resolve_source(slug, path)
+        bucket_dir, source = self.resolve_source(slug, path)
         logger.info('Compiling PDF for %s/%s', slug, path)
 
         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
@@ -173,7 +173,7 @@ class CompilerService:
                 for svg_file in sorted(Path(tmp).glob('page-*.svg'))
             ]
 
-    def _resolve_source(self, slug, path):
+    def resolve_source(self, slug, path):
         '''Validate that the source file exists and is inside the bucket.'''
         bucket_dir = (self.data_dir / slug).resolve()
         source     = (bucket_dir / path).resolve()

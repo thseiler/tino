@@ -7,8 +7,10 @@ from fastapi import Depends, HTTPException
 from . import config
 from .auth import check_access, get_current_user, is_global_admin
 from .collab import CollabManager
+from .lsp import LspManager
 from .models import User
 from .notifier import BucketNotifier
+from .preview import PreviewManager
 from .services.bucket import BucketService
 from .services.compiler import CompilerService
 from .services.file import FileService
@@ -101,6 +103,24 @@ def get_collab_manager() -> CollabManager:
         file_service=get_file_service(),
         auto_save=config.TINO_SAVE_DEBOUNCE_MS > 0,
         room_ttl=config.TINO_ROOM_TTL,
+    )
+
+
+@lru_cache
+def get_preview_manager() -> PreviewManager:
+    '''Singleton PreviewManager wired to the CompilerService for live previews.'''
+    return PreviewManager(
+        compiler=get_compiler_service(),
+        room_ttl=config.TINO_ROOM_TTL,
+    )
+
+
+@lru_cache
+def get_lsp_manager() -> LspManager:
+    '''Singleton LspManager wired to the CompilerService for IDE features.'''
+    return LspManager(
+        compiler=get_compiler_service(),
+        data_dir=config.TINO_BUCKET_DIR
     )
 
 

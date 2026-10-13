@@ -11,6 +11,7 @@ build/
 *.egg-info/
 tino/static/css/vendor/
 tino/static/js/vendor/
+tino/static/wasm
 
 # Javascript package cache
 package-lock.json
